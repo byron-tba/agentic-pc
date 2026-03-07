@@ -1,0 +1,35 @@
+{
+    "skill_id":  "unreconciled-transactions",
+    "version":  "v1",
+    "name":  "Unreconciled Transactions",
+    "purpose":  "Identify transactions not reconciled by period close.",
+    "owner":  "aider-prototype",
+    "tags":  [
+                 "accounting",
+                 "close",
+                 "phase1"
+             ],
+    "status":  "active",
+    "required_inputs":  [
+                            "client_id",
+                            "period_start",
+                            "period_end"
+                        ],
+    "optional_inputs":  [
+
+                        ],
+    "required_mcp_tools":  [
+                               "get_transactions",
+                               "get_accounts",
+                               "get_reconciliations"
+                           ],
+    "expected_evidence_requirements":  [
+                                           "Account reference",
+                                           "Date or period context",
+                                           "Source field used"
+                                       ],
+    "safety_notes":  [
+                         "Never post entries automatically",
+                         "Always require human review"
+                     ]
+}

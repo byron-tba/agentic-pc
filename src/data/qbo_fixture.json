@@ -1,0 +1,59 @@
+{
+  "transactions": [
+    {
+      "id": "txn_1001",
+      "account": "Bank",
+      "type": "expense",
+      "amount": 15200,
+      "category": "Uncategorized",
+      "description": "Wire payment",
+      "cleared": false,
+      "reconciled": false,
+      "date": "2026-02-12",
+      "vendor": "Unknown"
+    },
+    {
+      "id": "txn_1002",
+      "account": "Prepaid Expenses",
+      "type": "expense",
+      "amount": 7800,
+      "category": "Office Supplies",
+      "description": "Annual software",
+      "cleared": true,
+      "reconciled": true,
+      "date": "2026-02-18",
+      "vendor": "SaaSCo"
+    },
+    {
+      "id": "txn_1003",
+      "account": "Suspense",
+      "type": "journal",
+      "amount": 4100,
+      "category": "Suspense",
+      "description": "Month-end adjustment",
+      "cleared": false,
+      "reconciled": false,
+      "date": "2026-01-31",
+      "vendor": ""
+    },
+    {
+      "id": "txn_1004",
+      "account": "Accounts Payable",
+      "type": "bill",
+      "amount": 920,
+      "category": "Utilities",
+      "description": "",
+      "cleared": true,
+      "reconciled": true,
+      "date": "2026-02-07",
+      "vendor": "Power Grid Inc"
+    }
+  ],
+  "accounts": [
+    { "name": "Suspense", "balance": 4100, "last_activity": "2026-01-31" },
+    { "name": "Uncleared Checks", "balance": 3200, "last_activity": "2025-11-15" }
+  ],
+  "reconciliations": [
+    { "account": "Bank", "period": "2026-02", "status": "open", "unreconciled_count": 2 }
+  ]
+}

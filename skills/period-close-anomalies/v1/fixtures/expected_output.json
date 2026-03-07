@@ -1,0 +1,18 @@
+{
+  "findings": [
+    {
+      "finding_id": "fixture_period-close-anomalies",
+      "skill_id": "period-close-anomalies",
+      "entity_type": "transaction",
+      "entity_ref": "fixture_entity",
+      "severity": "medium",
+      "risk_score": 60,
+      "confidence_score": 70,
+      "summary": "Fixture-generated expected finding",
+      "rationale": "Expected behavior reference for period-close-anomalies.",
+      "recommended_action": "Review and confirm corrective action.",
+      "evidence": ["fixture evidence"],
+      "requires_human_review": true
+    }
+  ]
+}

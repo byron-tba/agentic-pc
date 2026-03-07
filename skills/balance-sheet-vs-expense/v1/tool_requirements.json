@@ -1,0 +1,7 @@
+{
+  "tools": [
+    { "name": "get_transactions", "required": true, "params": ["client_id", "period_start", "period_end"] },
+    { "name": "get_accounts", "required": true, "params": ["client_id"] },
+    { "name": "get_reconciliations", "required": true, "params": ["client_id", "period_end"] }
+  ]
+}

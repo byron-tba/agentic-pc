@@ -1,0 +1,27 @@
+{
+  "type": "object",
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "finding_id": { "type": "string" },
+          "skill_id": { "type": "string" },
+          "entity_type": { "type": "string", "enum": ["transaction", "account", "vendor", "reconciliation"] },
+          "entity_ref": { "type": "string" },
+          "severity": { "type": "string", "enum": ["low", "medium", "high"] },
+          "risk_score": { "type": "number" },
+          "confidence_score": { "type": "number" },
+          "summary": { "type": "string" },
+          "rationale": { "type": "string" },
+          "recommended_action": { "type": "string" },
+          "evidence": { "type": "array", "items": { "type": "string" } },
+          "requires_human_review": { "type": "boolean" }
+        },
+        "required": ["skill_id", "entity_type", "entity_ref", "severity", "risk_score", "confidence_score", "summary", "rationale", "recommended_action", "evidence", "requires_human_review"]
+      }
+    }
+  },
+  "required": ["findings"]
+}

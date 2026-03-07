@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "client_id": { "type": "string" },
+    "period_start": { "type": "string" },
+    "period_end": { "type": "string" }
+  },
+  "required": ["client_id", "period_start", "period_end"]
+}

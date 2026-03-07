@@ -1,0 +1,35 @@
+{
+    "skill_id":  "balance-sheet-vs-expense",
+    "version":  "v1",
+    "name":  "Balance Sheet vs Expense",
+    "purpose":  "Flag likely account classification mismatches between asset and expense treatment.",
+    "owner":  "aider-prototype",
+    "tags":  [
+                 "accounting",
+                 "close",
+                 "phase1"
+             ],
+    "status":  "active",
+    "required_inputs":  [
+                            "client_id",
+                            "period_start",
+                            "period_end"
+                        ],
+    "optional_inputs":  [
+
+                        ],
+    "required_mcp_tools":  [
+                               "get_transactions",
+                               "get_accounts",
+                               "get_reconciliations"
+                           ],
+    "expected_evidence_requirements":  [
+                                           "Account reference",
+                                           "Date or period context",
+                                           "Source field used"
+                                       ],
+    "safety_notes":  [
+                         "Never post entries automatically",
+                         "Always require human review"
+                     ]
+}
