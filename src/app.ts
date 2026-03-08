@@ -80,6 +80,8 @@ export function createApp() {
 
   app.get("/runs/:runId/findings", async (req, res) => {
     const findings = await repo.getFindingsByRun(req.params.runId);
+    const executions = await repo.getExecutionsByRun(req.params.runId);
+
     const grouped = findings.reduce<Record<string, unknown[]>>((acc, row) => {
       if (!acc[row.skill_id]) {
         acc[row.skill_id] = [];
@@ -91,7 +93,27 @@ export function createApp() {
       });
       return acc;
     }, {});
-    res.json({ run_id: req.params.runId, grouped_findings: grouped });
+
+    const executionSummary = executions.map((item) => {
+      const mcpTag = item.tool_usage.find((tool) => tool.startsWith("mcp_mode:"));
+      return {
+        execution_id: item.execution_id,
+        skill_id: item.skill_id,
+        version: item.version,
+        status: item.status,
+        execution_mode: item.execution_mode,
+        mcp_mode: mcpTag ? mcpTag.replace("mcp_mode:", "") : "unknown",
+        started_at: item.started_at,
+        ended_at: item.ended_at,
+        error: item.error,
+      };
+    });
+
+    res.json({
+      run_id: req.params.runId,
+      grouped_findings: grouped,
+      execution_summary: executionSummary,
+    });
   });
 
   app.post("/findings/:findingId/decision", async (req, res) => {

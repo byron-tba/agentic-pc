@@ -39,6 +39,20 @@ type FindingRow = {
   qa_reasons: string[];
 };
 
+export type SkillExecutionRecord = {
+  execution_id: string;
+  run_id: string;
+  skill_id: string;
+  version: string;
+  status: string;
+  execution_mode: string;
+  started_at: string;
+  ended_at?: string;
+  tool_usage: string[];
+  raw_provider_output?: unknown;
+  error?: string;
+};
+
 export interface Repository {
   upsertClient(clientId: string, name: string): Promise<void>;
   createRun(run: RunRecord): Promise<void>;
@@ -49,6 +63,7 @@ export interface Repository {
   getSkillRegistration(skillId: string, version: string): Promise<SkillRegistration | null>;
   createExecution(log: ExecutionLog): Promise<string>;
   updateExecution(executionId: string, patch: Partial<ExecutionLog>): Promise<void>;
+  getExecutionsByRun(runId: string): Promise<SkillExecutionRecord[]>;
   saveFinding(runId: string, finding: Finding, qaResult: QaResult): Promise<void>;
   getFindingsByRun(runId: string): Promise<FindingRecord[]>;
   saveReviewDecision(findingId: string, payload: ReviewDecisionPayload): Promise<{ decision_id: string }>;
@@ -71,9 +86,7 @@ export class InMemoryRepository implements Repository {
 
   async updateRun(runId: string, patch: Partial<RunRecord>): Promise<void> {
     const prev = this.runs.get(runId);
-    if (!prev) {
-      return;
-    }
+    if (!prev) return;
     this.runs.set(runId, { ...prev, ...patch });
   }
 
@@ -103,10 +116,26 @@ export class InMemoryRepository implements Repository {
 
   async updateExecution(executionId: string, patch: Partial<ExecutionLog>): Promise<void> {
     const prev = this.executions.get(executionId);
-    if (!prev) {
-      return;
-    }
+    if (!prev) return;
     this.executions.set(executionId, { ...prev, ...patch });
+  }
+
+  async getExecutionsByRun(runId: string): Promise<SkillExecutionRecord[]> {
+    return [...this.executions.entries()]
+      .filter(([, item]) => item.run_id === runId)
+      .map(([executionId, item]) => ({
+        execution_id: executionId,
+        run_id: item.run_id,
+        skill_id: item.skill_id,
+        version: item.version,
+        status: item.status,
+        execution_mode: item.execution_mode,
+        started_at: item.started_at,
+        ended_at: item.ended_at,
+        tool_usage: item.tool_usage,
+        raw_provider_output: item.raw_provider_output,
+        error: item.error,
+      }));
   }
 
   async saveFinding(runId: string, finding: Finding, qaResult: QaResult): Promise<void> {
@@ -127,9 +156,7 @@ export class InMemoryRepository implements Repository {
   async saveReviewDecision(findingId: string, payload: ReviewDecisionPayload): Promise<{ decision_id: string }> {
     const decisionId = makeId("decision");
     const finding = this.findings.get(findingId);
-    if (!finding) {
-      throw new Error("Finding not found");
-    }
+    if (!finding) throw new Error("Finding not found");
     finding.qa_reasons = [...finding.qa_reasons, `${payload.decision}:${payload.note ?? ""}`];
     return { decision_id: decisionId };
   }
@@ -156,9 +183,7 @@ export class PgRepository implements Repository {
 
   async updateRun(runId: string, patch: Partial<RunRecord>): Promise<void> {
     const current = await this.getRun(runId);
-    if (!current) {
-      return;
-    }
+    if (!current) return;
     const next = { ...current, ...patch };
     await this.pool.query(
       `UPDATE close_runs SET status = $2, ended_at = $3, error = $4 WHERE run_id = $1`,
@@ -192,13 +217,8 @@ export class PgRepository implements Repository {
       "SELECT skill_id, version, provider_skill_id, status, manifest FROM skill_registrations WHERE skill_id = $1 AND version = $2",
       [skillId, version],
     );
-    if (!res.rows[0]) {
-      return null;
-    }
-    return {
-      ...res.rows[0],
-      manifest: res.rows[0].manifest,
-    } as SkillRegistration;
+    if (!res.rows[0]) return null;
+    return { ...res.rows[0], manifest: res.rows[0].manifest } as SkillRegistration;
   }
 
   async createExecution(log: ExecutionLog): Promise<string> {
@@ -227,9 +247,7 @@ export class PgRepository implements Repository {
   async updateExecution(executionId: string, patch: Partial<ExecutionLog>): Promise<void> {
     const res = await this.pool.query("SELECT * FROM skill_executions WHERE execution_id = $1", [executionId]);
     const current = res.rows[0] as ExecutionLog | undefined;
-    if (!current) {
-      return;
-    }
+    if (!current) return;
     const next = { ...current, ...patch };
     await this.pool.query(
       `UPDATE skill_executions SET status = $2, ended_at = $3, tool_usage = $4, raw_provider_output = $5, error = $6 WHERE execution_id = $1`,
@@ -242,6 +260,26 @@ export class PgRepository implements Repository {
         next.error ?? null,
       ],
     );
+  }
+
+  async getExecutionsByRun(runId: string): Promise<SkillExecutionRecord[]> {
+    const res = await this.pool.query(
+      "SELECT execution_id, run_id, skill_id, version, status, execution_mode, started_at, ended_at, tool_usage, raw_provider_output, error FROM skill_executions WHERE run_id = $1 ORDER BY started_at ASC",
+      [runId],
+    );
+    return res.rows.map((row) => ({
+      execution_id: row.execution_id,
+      run_id: row.run_id,
+      skill_id: row.skill_id,
+      version: row.version,
+      status: row.status,
+      execution_mode: row.execution_mode,
+      started_at: row.started_at,
+      ended_at: row.ended_at,
+      tool_usage: row.tool_usage ?? [],
+      raw_provider_output: row.raw_provider_output,
+      error: row.error,
+    }));
   }
 
   async saveFinding(runId: string, finding: Finding, qaResult: QaResult): Promise<void> {

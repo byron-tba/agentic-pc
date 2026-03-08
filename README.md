@@ -60,3 +60,6 @@ Functional prototype for Claude-backed accounting skills with a QBO MCP-ready ad
 - `USE_LIVE_CLAUDE=false` and `USE_LIVE_QBO_MCP=false` keeps Phase 1 fixture-first.
 - Live Claude/QBO calls are optional and non-blocking.
 - Human review remains mandatory for all findings.
+
+- GET /runs/:runId/findings now includes execution_summary with mcp_mode per skill execution.
+

@@ -18,6 +18,7 @@ export class RunOrchestrator {
   async runClose(request: CloseRunRequest): Promise<{ run_id: string; status: string }> {
     const parsed = CloseRunRequestSchema.parse(request);
     const runId = makeId("run");
+
     await this.repo.upsertClient(parsed.client_id, `Client ${parsed.client_id}`);
     await this.repo.createRun({
       run_id: runId,
@@ -69,9 +70,11 @@ export class RunOrchestrator {
 
       try {
         const result = await this.runtime.executeSkill(skillPkg.manifest.skill_id, skillPkg.manifest.version, context);
+
         for (const finding of result.findings) {
           const qaResult = this.qa.validate(finding);
           await this.repo.saveFinding(runId, finding, qaResult);
+
           if (qaResult.status === "fail") {
             this.analytics.capture("finding_qa_failed", {
               run_id: runId,
@@ -104,6 +107,7 @@ export class RunOrchestrator {
           skill_id: skillPkg.manifest.skill_id,
           version: skillPkg.manifest.version,
           execution_mode: result.executionMode,
+          mcp_mode: result.mcpMode,
           finding_count: result.findings.length,
         });
       } catch (error) {
@@ -112,6 +116,7 @@ export class RunOrchestrator {
           ended_at: nowIso(),
           error: (error as Error).message,
         });
+
         this.analytics.capture("skill_execution_failed", {
           run_id: runId,
           skill_id: skillPkg.manifest.skill_id,
@@ -125,6 +130,7 @@ export class RunOrchestrator {
       status: "completed",
       ended_at: nowIso(),
     });
+
     this.analytics.capture("close_run_completed", {
       run_id: runId,
       client_id: parsed.client_id,

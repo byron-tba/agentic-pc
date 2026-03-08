@@ -3,13 +3,14 @@ import path from "node:path";
 import type { ClaudeSkillsAdapter } from "../adapters/claude.js";
 import { FindingSchema, type Finding, type SkillExecutionContext } from "../contracts/schemas.js";
 import type { Repository } from "../db/repository.js";
-import { makeId, nowIso } from "../utils.js";
+import { makeId } from "../utils.js";
 import { QboMcpAdapter } from "./mcpAdapter.js";
 import { SkillsService } from "./skillsService.js";
 
 export type SkillRunResult = {
   findings: Finding[];
   executionMode: "claude" | "fixture";
+  mcpMode: "live" | "fixture";
   rawProviderOutput: unknown;
   toolUsage: string[];
 };
@@ -31,16 +32,18 @@ export class RuntimeService {
       return {
         findings,
         executionMode: "claude",
+        mcpMode: "live",
         rawProviderOutput: claudeResult.rawOutput,
-        toolUsage: ["provider_skill_execute"],
+        toolUsage: ["provider_skill_execute", "mcp_mode:live"],
       };
     } catch (error) {
       const fallback = await this.runFixture(skillId, version, context);
       return {
-        findings: fallback,
+        findings: fallback.findings,
         executionMode: "fixture",
+        mcpMode: fallback.mcpMode,
         rawProviderOutput: { error: (error as Error).message, fallback: true },
-        toolUsage: ["get_transactions", "get_accounts", "get_reconciliations"],
+        toolUsage: ["get_transactions", "get_accounts", "get_reconciliations", `mcp_mode:${fallback.mcpMode}`],
       };
     }
   }
@@ -66,7 +69,11 @@ export class RuntimeService {
     });
   }
 
-  private async runFixture(skillId: string, version: string, context: SkillExecutionContext): Promise<Finding[]> {
+  private async runFixture(
+    skillId: string,
+    version: string,
+    context: SkillExecutionContext,
+  ): Promise<{ findings: Finding[]; mcpMode: "live" | "fixture" }> {
     const pkgPath = path.join(process.cwd(), "skills", skillId, version, "fixtures", "expected_output.json");
     const qboTransactions = await this.mcp.callTool({
       tool: "get_transactions",
@@ -84,19 +91,27 @@ export class RuntimeService {
       params: {},
     });
 
+    const mcpMode: "live" | "fixture" =
+      [qboTransactions, qboAccounts, qboReconciliations].some((item) => item.source === "live" && item.ok)
+        ? "live"
+        : "fixture";
+
     const hasFixture = await readFile(pkgPath, "utf8").then(
       (raw) => JSON.parse(raw) as { findings: Finding[] },
       () => null,
     );
 
     if (hasFixture?.findings?.length) {
-      return hasFixture.findings.map((finding) =>
-        FindingSchema.parse({
-          ...finding,
-          finding_id: makeId("finding"),
-          skill_id: skillId,
-        }),
-      );
+      return {
+        findings: hasFixture.findings.map((finding) =>
+          FindingSchema.parse({
+            ...finding,
+            finding_id: makeId("finding"),
+            skill_id: skillId,
+          }),
+        ),
+        mcpMode,
+      };
     }
 
     const txns = (qboTransactions.data as any[]) ?? [];
@@ -258,6 +273,6 @@ export class RuntimeService {
       );
     }
 
-    return generated;
+    return { findings: generated, mcpMode };
   }
 }

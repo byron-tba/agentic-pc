@@ -21,6 +21,7 @@ export class QboMcpAdapter {
       return {
         tool: request.tool,
         ok: false,
+        source: "live",
         data: null,
         error: "Live QBO MCP is not configured in this prototype build.",
       };
@@ -29,15 +30,16 @@ export class QboMcpAdapter {
     const fixture = await this.loadFixture();
     switch (request.tool) {
       case "get_transactions":
-        return { tool: request.tool, ok: true, data: fixture.transactions };
+        return { tool: request.tool, ok: true, source: "fixture", data: fixture.transactions };
       case "get_accounts":
-        return { tool: request.tool, ok: true, data: fixture.accounts };
+        return { tool: request.tool, ok: true, source: "fixture", data: fixture.accounts };
       case "get_reconciliations":
-        return { tool: request.tool, ok: true, data: fixture.reconciliations };
+        return { tool: request.tool, ok: true, source: "fixture", data: fixture.reconciliations };
       default:
         return {
           tool: request.tool,
           ok: false,
+          source: "fixture",
           data: null,
           error: `Unsupported MCP tool: ${request.tool}`,
         };

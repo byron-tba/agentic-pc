@@ -104,6 +104,7 @@ export const McpToolResponseSchema = z.object({
   tool: z.string(),
   ok: z.boolean(),
   data: z.unknown(),
+  source: z.enum(["live", "fixture"]),
   error: z.string().optional(),
 });
 
