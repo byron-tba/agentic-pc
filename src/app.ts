@@ -51,6 +51,13 @@ export function createApp() {
     res.json({ ok: true });
   });
 
+  app.get("/runs", async (req, res) => {
+    const parsedLimit = Number(req.query.limit ?? 20);
+    const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(100, parsedLimit)) : 20;
+    const runs = await repo.listRecentRuns(limit);
+    res.json({ runs });
+  });
+
   app.post("/runs", async (req, res) => {
     try {
       const body = CloseRunRequestSchema.parse(req.body);

@@ -2,7 +2,7 @@
 import type { ExecutionLog, Finding, QaResult, ReviewDecisionPayload, SkillManifest } from "../contracts/schemas.js";
 import { makeId, nowIso } from "../utils.js";
 
-type RunRecord = {
+export type RunRecord = {
   run_id: string;
   client_id: string;
   period_start: string;
@@ -44,6 +44,7 @@ export interface Repository {
   createRun(run: RunRecord): Promise<void>;
   updateRun(runId: string, patch: Partial<RunRecord>): Promise<void>;
   getRun(runId: string): Promise<RunRecord | null>;
+  listRecentRuns(limit: number): Promise<RunRecord[]>;
   saveSkillRegistration(reg: SkillRegistration): Promise<void>;
   getSkillRegistration(skillId: string, version: string): Promise<SkillRegistration | null>;
   createExecution(log: ExecutionLog): Promise<string>;
@@ -78,6 +79,12 @@ export class InMemoryRepository implements Repository {
 
   async getRun(runId: string): Promise<RunRecord | null> {
     return this.runs.get(runId) ?? null;
+  }
+
+  async listRecentRuns(limit: number): Promise<RunRecord[]> {
+    return [...this.runs.values()]
+      .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
+      .slice(0, limit);
   }
 
   async saveSkillRegistration(reg: SkillRegistration): Promise<void> {
@@ -162,6 +169,12 @@ export class PgRepository implements Repository {
   async getRun(runId: string): Promise<RunRecord | null> {
     const res = await this.pool.query("SELECT * FROM close_runs WHERE run_id = $1", [runId]);
     return (res.rows[0] as RunRecord | undefined) ?? null;
+  }
+
+  async listRecentRuns(limit: number): Promise<RunRecord[]> {
+    const boundedLimit = Number.isFinite(limit) ? Math.max(1, Math.min(100, limit)) : 20;
+    const res = await this.pool.query("SELECT * FROM close_runs ORDER BY started_at DESC LIMIT $1", [boundedLimit]);
+    return res.rows as RunRecord[];
   }
 
   async saveSkillRegistration(reg: SkillRegistration): Promise<void> {

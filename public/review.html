@@ -34,13 +34,13 @@
     h1 { margin: 0 0 8px; font-size: 24px; }
     .sub { margin: 0; color: var(--muted); }
     .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-    input, select, textarea, button {
+    input, select, button {
       font: inherit;
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 8px 10px;
     }
-    input, select, textarea { background: #fff; }
+    input, select { background: #fff; }
     button { background: var(--accent); color: #fff; border: none; cursor: pointer; }
     button.secondary { background: #4b5563; }
     .skill-group { margin-top: 20px; }
@@ -73,13 +73,34 @@
   <div class="container">
     <div class="panel">
       <h1>Aider Findings Review</h1>
-      <p class="sub">Load findings by run id and submit accountant decisions.</p>
+      <p class="sub">Load findings by run id, filter, and submit accountant decisions.</p>
+      <div class="row">
+        <select id="runHistorySelect" style="min-width: 320px; flex: 1;">
+          <option value="">Recent runs...</option>
+        </select>
+        <button id="refreshRunsBtn" class="secondary">Refresh Runs</button>
+      </div>
       <div class="row">
         <input id="runIdInput" placeholder="run_..." style="min-width: 320px; flex: 1;" />
         <button id="loadBtn">Load Findings</button>
+        <button id="createRunBtn" class="secondary">Create Demo Run</button>
       </div>
       <div class="row">
-        <button id="createRunBtn" class="secondary">Create Demo Run</button>
+        <select id="filterSkill" style="min-width: 200px;">
+          <option value="all">All Skills</option>
+        </select>
+        <select id="filterSeverity" style="min-width: 180px;">
+          <option value="all">All Severities</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+        <select id="filterQa" style="min-width: 180px;">
+          <option value="all">All QA Status</option>
+          <option value="pass">Pass</option>
+          <option value="needs_review">Needs Review</option>
+          <option value="fail">Fail</option>
+        </select>
       </div>
       <div id="headerMessage" class="message"></div>
     </div>
@@ -89,16 +110,38 @@
 
   <script>
     const runIdInput = document.getElementById("runIdInput");
+    const runHistorySelect = document.getElementById("runHistorySelect");
+    const refreshRunsBtn = document.getElementById("refreshRunsBtn");
     const loadBtn = document.getElementById("loadBtn");
     const createRunBtn = document.getElementById("createRunBtn");
+    const filterSkill = document.getElementById("filterSkill");
+    const filterSeverity = document.getElementById("filterSeverity");
+    const filterQa = document.getElementById("filterQa");
     const resultsEl = document.getElementById("results");
     const headerMessage = document.getElementById("headerMessage");
+
+    let currentRun = null;
+    let currentGroupedFindings = {};
 
     const qp = new URLSearchParams(window.location.search);
     if (qp.get("runId")) {
       runIdInput.value = qp.get("runId");
-      loadFindings(qp.get("runId"));
     }
+
+    loadRunHistory().then(() => {
+      if (runIdInput.value.trim()) {
+        loadFindings(runIdInput.value.trim());
+      }
+    });
+
+    refreshRunsBtn.addEventListener("click", () => loadRunHistory());
+
+    runHistorySelect.addEventListener("change", () => {
+      const selected = runHistorySelect.value;
+      if (!selected) return;
+      runIdInput.value = selected;
+      loadFindings(selected);
+    });
 
     loadBtn.addEventListener("click", () => {
       const runId = runIdInput.value.trim();
@@ -125,12 +168,39 @@
         }
         runIdInput.value = data.run_id;
         headerMessage.textContent = `Run created: ${data.run_id}`;
-        loadFindings(data.run_id);
+        await loadRunHistory();
+        await loadFindings(data.run_id);
       } catch (error) {
         headerMessage.textContent = error.message;
         headerMessage.classList.add("error");
       }
     });
+
+    filterSkill.addEventListener("change", applyFilters);
+    filterSeverity.addEventListener("change", applyFilters);
+    filterQa.addEventListener("change", applyFilters);
+
+    async function loadRunHistory() {
+      try {
+        const response = await fetch("/runs?limit=25");
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to load run history");
+        }
+
+        const runs = data.runs || [];
+        runHistorySelect.innerHTML = '<option value="">Recent runs...</option>';
+        for (const run of runs) {
+          const option = document.createElement("option");
+          option.value = run.run_id;
+          option.textContent = `${run.run_id} | ${run.client_id} | ${run.status} | ${new Date(run.started_at).toISOString().slice(0, 10)}`;
+          runHistorySelect.appendChild(option);
+        }
+      } catch (error) {
+        headerMessage.textContent = error.message;
+        headerMessage.classList.add("error");
+      }
+    }
 
     async function loadFindings(runId) {
       headerMessage.textContent = `Loading findings for ${runId}...`;
@@ -146,13 +216,64 @@
         const findingsData = await findingsRes.json();
         if (!findingsRes.ok) throw new Error(findingsData.error || "Failed to load findings");
 
-        renderRunSummary(runData);
-        renderFindings(runId, findingsData.grouped_findings || {});
+        currentRun = runData;
+        currentGroupedFindings = findingsData.grouped_findings || {};
+
+        hydrateSkillFilter(currentGroupedFindings);
+        renderCurrentView(runId);
         headerMessage.textContent = `Loaded run ${runId}`;
       } catch (error) {
         headerMessage.textContent = error.message;
         headerMessage.classList.add("error");
       }
+    }
+
+    function hydrateSkillFilter(grouped) {
+      const selected = filterSkill.value;
+      const skills = Object.keys(grouped).sort();
+      filterSkill.innerHTML = '<option value="all">All Skills</option>';
+      for (const skillId of skills) {
+        const option = document.createElement("option");
+        option.value = skillId;
+        option.textContent = skillId;
+        filterSkill.appendChild(option);
+      }
+      if (skills.includes(selected)) {
+        filterSkill.value = selected;
+      } else {
+        filterSkill.value = "all";
+      }
+    }
+
+    function applyFilters() {
+      if (!currentRun) return;
+      renderCurrentView(currentRun.run_id);
+    }
+
+    function renderCurrentView(runId) {
+      resultsEl.innerHTML = "";
+      renderRunSummary(currentRun);
+
+      const filtered = {};
+      const skillFilter = filterSkill.value;
+      const severityFilter = filterSeverity.value;
+      const qaFilter = filterQa.value;
+
+      for (const [skillId, items] of Object.entries(currentGroupedFindings)) {
+        if (skillFilter !== "all" && skillId !== skillFilter) continue;
+
+        const matches = items.filter((finding) => {
+          const severityOk = severityFilter === "all" || finding.severity === severityFilter;
+          const qaOk = qaFilter === "all" || (finding.qa_status || "unknown") === qaFilter;
+          return severityOk && qaOk;
+        });
+
+        if (matches.length > 0) {
+          filtered[skillId] = matches;
+        }
+      }
+
+      renderFindings(runId, filtered);
     }
 
     function renderRunSummary(run) {
@@ -171,7 +292,7 @@
       if (!skills.length) {
         const panel = document.createElement("div");
         panel.className = "panel";
-        panel.textContent = "No findings for this run.";
+        panel.textContent = "No findings match current filters.";
         resultsEl.appendChild(panel);
         return;
       }

@@ -50,5 +50,11 @@ Functional prototype for Claude-backed accounting skills with QBO MCP-ready adap
 ## Review UI
 
 - Open /review in the deployed service to load findings by run id and submit review decisions.
+- Use the Create Demo Run button, the recent runs dropdown, or paste an existing un_id.
+- Run history API: GET /runs?limit=25 for recent run dropdown support in the review UI.
+- Review UI includes filters for skill, severity, and QA status.
+
+- Open /review in the deployed service to load findings by run id and submit review decisions.
 - Use the Create Demo Run button or paste an existing un_id.
+
 
