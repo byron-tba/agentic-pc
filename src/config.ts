@@ -11,6 +11,8 @@ export type AppConfig = {
   claudeModel: string;
   useLiveClaude: boolean;
   useLiveQboMcp: boolean;
+  qboMcpServerUrl: string | null;
+  qboMcpApiKey: string | null;
 };
 
 function envFlag(value: string | undefined, defaultValue = false): boolean {
@@ -29,4 +31,6 @@ export const config: AppConfig = {
   claudeModel: process.env.CLAUDE_MODEL ?? "claude-3-7-sonnet-latest",
   useLiveClaude: envFlag(process.env.USE_LIVE_CLAUDE, false),
   useLiveQboMcp: envFlag(process.env.USE_LIVE_QBO_MCP, false),
+  qboMcpServerUrl: process.env.QBO_MCP_SERVER_URL ?? null,
+  qboMcpApiKey: process.env.QBO_MCP_API_KEY ?? null,
 };

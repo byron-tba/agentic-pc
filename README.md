@@ -63,3 +63,11 @@ Functional prototype for Claude-backed accounting skills with a QBO MCP-ready ad
 
 - GET /runs/:runId/findings now includes execution_summary with mcp_mode per skill execution.
 
+
+## Live MCP Configuration
+
+- Set USE_LIVE_QBO_MCP=true in the app service.
+- Set QBO_MCP_SERVER_URL to your deployed MCP server URL (for example https://bkpqbomcp-production.up.railway.app).
+- Set QBO_MCP_API_KEY only if your MCP service requires API-key auth.
+- GET /runs/:runId/findings includes execution_summary[].mcp_mode so you can confirm live vs ixture.
+
