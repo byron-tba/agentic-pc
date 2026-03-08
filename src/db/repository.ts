@@ -30,6 +30,15 @@ type FindingRecord = {
   qa_reasons: string[];
 };
 
+type FindingRow = {
+  finding_id: string;
+  run_id: string;
+  skill_id: string;
+  payload: Finding;
+  qa_status: string;
+  qa_reasons: string[];
+};
+
 export interface Repository {
   upsertClient(clientId: string, name: string): Promise<void>;
   createRun(run: RunRecord): Promise<void>;
@@ -239,7 +248,7 @@ export class PgRepository implements Repository {
 
   async getFindingsByRun(runId: string): Promise<FindingRecord[]> {
     const res = await this.pool.query("SELECT * FROM findings WHERE run_id = $1 ORDER BY created_at ASC", [runId]);
-    return res.rows.map((row) => ({
+    return res.rows.map((row: FindingRow) => ({
       finding_id: row.finding_id,
       run_id: row.run_id,
       skill_id: row.skill_id,
