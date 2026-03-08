@@ -33,7 +33,7 @@
     }
     h1 { margin: 0 0 8px; font-size: 24px; }
     .sub { margin: 0; color: var(--muted); }
-    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
     input, select, button {
       font: inherit;
       border: 1px solid var(--border);
@@ -43,6 +43,7 @@
     input, select { background: #fff; }
     button { background: var(--accent); color: #fff; border: none; cursor: pointer; }
     button.secondary { background: #4b5563; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
     .skill-group { margin-top: 20px; }
     .skill-title { font-size: 18px; margin: 0 0 8px; }
     .finding {
@@ -73,7 +74,7 @@
   <div class="container">
     <div class="panel">
       <h1>Aider Findings Review</h1>
-      <p class="sub">Load findings by run id, filter, and submit accountant decisions.</p>
+      <p class="sub">Load findings by run id, search/filter, paginate, and submit decisions.</p>
       <div class="row">
         <select id="runHistorySelect" style="min-width: 320px; flex: 1;">
           <option value="">Recent runs...</option>
@@ -86,21 +87,21 @@
         <button id="createRunBtn" class="secondary">Create Demo Run</button>
       </div>
       <div class="row">
-        <select id="filterSkill" style="min-width: 200px;">
-          <option value="all">All Skills</option>
+        <input id="searchFindingId" placeholder="Search finding_id..." style="min-width: 220px; flex: 1;" />
+        <select id="filterSkill" style="min-width: 180px;"><option value="all">All Skills</option></select>
+        <select id="filterSeverity" style="min-width: 160px;">
+          <option value="all">All Severities</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
         </select>
-        <select id="filterSeverity" style="min-width: 180px;">
-          <option value="all">All Severities</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
+        <select id="filterQa" style="min-width: 160px;">
+          <option value="all">All QA Status</option><option value="pass">Pass</option><option value="needs_review">Needs Review</option><option value="fail">Fail</option>
         </select>
-        <select id="filterQa" style="min-width: 180px;">
-          <option value="all">All QA Status</option>
-          <option value="pass">Pass</option>
-          <option value="needs_review">Needs Review</option>
-          <option value="fail">Fail</option>
-        </select>
+      </div>
+      <div class="row">
+        <label class="muted" for="pageSizeSelect">Page Size</label>
+        <select id="pageSizeSelect"><option value="5">5</option><option value="10" selected>10</option><option value="20">20</option><option value="50">50</option></select>
+        <button id="prevPageBtn" class="secondary">Prev</button>
+        <button id="nextPageBtn" class="secondary">Next</button>
+        <span id="pageStatus" class="muted"></span>
       </div>
       <div id="headerMessage" class="message"></div>
     </div>
@@ -114,58 +115,38 @@
     const refreshRunsBtn = document.getElementById("refreshRunsBtn");
     const loadBtn = document.getElementById("loadBtn");
     const createRunBtn = document.getElementById("createRunBtn");
+    const searchFindingId = document.getElementById("searchFindingId");
     const filterSkill = document.getElementById("filterSkill");
     const filterSeverity = document.getElementById("filterSeverity");
     const filterQa = document.getElementById("filterQa");
+    const pageSizeSelect = document.getElementById("pageSizeSelect");
+    const prevPageBtn = document.getElementById("prevPageBtn");
+    const nextPageBtn = document.getElementById("nextPageBtn");
+    const pageStatus = document.getElementById("pageStatus");
     const resultsEl = document.getElementById("results");
     const headerMessage = document.getElementById("headerMessage");
 
     let currentRun = null;
     let currentGroupedFindings = {};
+    let filteredFlat = [];
+    let currentPage = 1;
 
     const qp = new URLSearchParams(window.location.search);
-    if (qp.get("runId")) {
-      runIdInput.value = qp.get("runId");
-    }
+    if (qp.get("runId")) runIdInput.value = qp.get("runId");
 
-    loadRunHistory().then(() => {
-      if (runIdInput.value.trim()) {
-        loadFindings(runIdInput.value.trim());
-      }
-    });
+    loadRunHistory().then(() => { if (runIdInput.value.trim()) loadFindings(runIdInput.value.trim()); });
 
     refreshRunsBtn.addEventListener("click", () => loadRunHistory());
-
-    runHistorySelect.addEventListener("change", () => {
-      const selected = runHistorySelect.value;
-      if (!selected) return;
-      runIdInput.value = selected;
-      loadFindings(selected);
-    });
-
-    loadBtn.addEventListener("click", () => {
-      const runId = runIdInput.value.trim();
-      if (!runId) return;
-      loadFindings(runId);
-    });
+    runHistorySelect.addEventListener("change", () => { if (runHistorySelect.value) { runIdInput.value = runHistorySelect.value; loadFindings(runHistorySelect.value); } });
+    loadBtn.addEventListener("click", () => { if (runIdInput.value.trim()) loadFindings(runIdInput.value.trim()); });
 
     createRunBtn.addEventListener("click", async () => {
       headerMessage.textContent = "Creating demo run...";
       headerMessage.classList.remove("error");
       try {
-        const response = await fetch("/runs", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            client_id: "client_demo",
-            period_start: "2026-02-01",
-            period_end: "2026-02-28"
-          })
-        });
+        const response = await fetch("/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ client_id: "client_demo", period_start: "2026-02-01", period_end: "2026-02-28" }) });
         const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to create run");
-        }
+        if (!response.ok) throw new Error(data.error || "Failed to create run");
         runIdInput.value = data.run_id;
         headerMessage.textContent = `Run created: ${data.run_id}`;
         await loadRunHistory();
@@ -176,21 +157,17 @@
       }
     });
 
-    filterSkill.addEventListener("change", applyFilters);
-    filterSeverity.addEventListener("change", applyFilters);
-    filterQa.addEventListener("change", applyFilters);
+    [filterSkill, filterSeverity, filterQa, searchFindingId, pageSizeSelect].forEach((el) => el.addEventListener("input", () => { currentPage = 1; applyFilters(); }));
+    prevPageBtn.addEventListener("click", () => { if (currentPage > 1) { currentPage--; renderCurrentPage(); } });
+    nextPageBtn.addEventListener("click", () => { const totalPages = Math.max(1, Math.ceil(filteredFlat.length / Number(pageSizeSelect.value))); if (currentPage < totalPages) { currentPage++; renderCurrentPage(); } });
 
     async function loadRunHistory() {
       try {
         const response = await fetch("/runs?limit=25");
         const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to load run history");
-        }
-
-        const runs = data.runs || [];
+        if (!response.ok) throw new Error(data.error || "Failed to load run history");
         runHistorySelect.innerHTML = '<option value="">Recent runs...</option>';
-        for (const run of runs) {
+        for (const run of data.runs || []) {
           const option = document.createElement("option");
           option.value = run.run_id;
           option.textContent = `${run.run_id} | ${run.client_id} | ${run.status} | ${new Date(run.started_at).toISOString().slice(0, 10)}`;
@@ -206,21 +183,19 @@
       headerMessage.textContent = `Loading findings for ${runId}...`;
       headerMessage.classList.remove("error");
       resultsEl.innerHTML = "";
-
       try {
         const runRes = await fetch(`/runs/${runId}`);
         const runData = await runRes.json();
         if (!runRes.ok) throw new Error(runData.error || "Failed to load run");
-
         const findingsRes = await fetch(`/runs/${runId}/findings`);
         const findingsData = await findingsRes.json();
         if (!findingsRes.ok) throw new Error(findingsData.error || "Failed to load findings");
 
         currentRun = runData;
         currentGroupedFindings = findingsData.grouped_findings || {};
-
         hydrateSkillFilter(currentGroupedFindings);
-        renderCurrentView(runId);
+        currentPage = 1;
+        applyFilters();
         headerMessage.textContent = `Loaded run ${runId}`;
       } catch (error) {
         headerMessage.textContent = error.message;
@@ -238,52 +213,59 @@
         option.textContent = skillId;
         filterSkill.appendChild(option);
       }
-      if (skills.includes(selected)) {
-        filterSkill.value = selected;
-      } else {
-        filterSkill.value = "all";
-      }
+      filterSkill.value = skills.includes(selected) ? selected : "all";
     }
 
     function applyFilters() {
       if (!currentRun) return;
-      renderCurrentView(currentRun.run_id);
-    }
-
-    function renderCurrentView(runId) {
-      resultsEl.innerHTML = "";
-      renderRunSummary(currentRun);
-
-      const filtered = {};
       const skillFilter = filterSkill.value;
       const severityFilter = filterSeverity.value;
       const qaFilter = filterQa.value;
+      const findingIdQuery = searchFindingId.value.trim().toLowerCase();
 
+      const flat = [];
       for (const [skillId, items] of Object.entries(currentGroupedFindings)) {
         if (skillFilter !== "all" && skillId !== skillFilter) continue;
-
-        const matches = items.filter((finding) => {
+        for (const finding of items) {
           const severityOk = severityFilter === "all" || finding.severity === severityFilter;
           const qaOk = qaFilter === "all" || (finding.qa_status || "unknown") === qaFilter;
-          return severityOk && qaOk;
-        });
-
-        if (matches.length > 0) {
-          filtered[skillId] = matches;
+          const idOk = !findingIdQuery || String(finding.finding_id || "").toLowerCase().includes(findingIdQuery);
+          if (severityOk && qaOk && idOk) flat.push({ skillId, finding });
         }
       }
+      filteredFlat = flat;
+      renderCurrentPage();
+    }
 
-      renderFindings(runId, filtered);
+    function renderCurrentPage() {
+      if (!currentRun) return;
+      resultsEl.innerHTML = "";
+      renderRunSummary(currentRun);
+
+      const pageSize = Number(pageSizeSelect.value);
+      const total = filteredFlat.length;
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      if (currentPage > totalPages) currentPage = totalPages;
+      const start = (currentPage - 1) * pageSize;
+      const pageItems = filteredFlat.slice(start, start + pageSize);
+
+      const groupedPage = {};
+      for (const item of pageItems) {
+        if (!groupedPage[item.skillId]) groupedPage[item.skillId] = [];
+        groupedPage[item.skillId].push(item.finding);
+      }
+
+      pageStatus.textContent = `Page ${currentPage}/${totalPages} | Showing ${pageItems.length} of ${total}`;
+      prevPageBtn.disabled = currentPage <= 1;
+      nextPageBtn.disabled = currentPage >= totalPages;
+
+      renderFindings(currentRun.run_id, groupedPage);
     }
 
     function renderRunSummary(run) {
       const panel = document.createElement("div");
       panel.className = "panel";
-      panel.innerHTML = `
-        <div><strong>Run:</strong> ${run.run_id}</div>
-        <div class="muted">Client: ${run.client_id} | Status: ${run.status}</div>
-        <div class="muted">Period: ${new Date(run.period_start).toISOString().slice(0, 10)} to ${new Date(run.period_end).toISOString().slice(0, 10)}</div>
-      `;
+      panel.innerHTML = `<div><strong>Run:</strong> ${run.run_id}</div><div class="muted">Client: ${run.client_id} | Status: ${run.status}</div><div class="muted">Period: ${new Date(run.period_start).toISOString().slice(0, 10)} to ${new Date(run.period_end).toISOString().slice(0, 10)}</div>`;
       resultsEl.appendChild(panel);
     }
 
@@ -300,7 +282,6 @@
       skills.forEach((skillId) => {
         const group = document.createElement("div");
         group.className = "panel skill-group";
-
         const title = document.createElement("h2");
         title.className = "skill-title";
         title.textContent = `${skillId} (${grouped[skillId].length})`;
@@ -309,53 +290,20 @@
         grouped[skillId].forEach((finding) => {
           const card = document.createElement("div");
           card.className = "finding";
-
           const severityClass = `severity-${finding.severity || "medium"}`;
-          card.innerHTML = `
-            <div>
-              <span class="pill ${severityClass}">${finding.severity}</span>
-              <strong>${finding.summary}</strong>
-            </div>
-            <div class="meta">Finding ID: ${finding.finding_id}</div>
-            <div class="meta">Entity: ${finding.entity_type} / ${finding.entity_ref}</div>
-            <div class="meta">Risk: ${finding.risk_score} | Confidence: ${finding.confidence_score} | QA: ${finding.qa_status || "unknown"}</div>
-            <p>${finding.rationale}</p>
-            <p><strong>Recommended:</strong> ${finding.recommended_action}</p>
-            <div><strong>Evidence:</strong></div>
-            <ul class="evidence">${(finding.evidence || []).map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>
-          `;
+          card.innerHTML = `<div><span class="pill ${severityClass}">${finding.severity}</span><strong>${finding.summary}</strong></div><div class="meta">Finding ID: ${finding.finding_id}</div><div class="meta">Entity: ${finding.entity_type} / ${finding.entity_ref}</div><div class="meta">Risk: ${finding.risk_score} | Confidence: ${finding.confidence_score} | QA: ${finding.qa_status || "unknown"}</div><p>${finding.rationale}</p><p><strong>Recommended:</strong> ${finding.recommended_action}</p><div><strong>Evidence:</strong></div><ul class="evidence">${(finding.evidence || []).map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>`;
 
           const controls = document.createElement("div");
           controls.className = "row";
-          controls.innerHTML = `
-            <select>
-              <option value="accept">Accept</option>
-              <option value="reject">Reject</option>
-              <option value="needs_review">Needs Review</option>
-              <option value="add_note">Add Note</option>
-            </select>
-            <input placeholder="Optional note" style="min-width: 220px; flex: 1;" />
-            <button>Submit Decision</button>
-            <span class="message"></span>
-          `;
-
+          controls.innerHTML = `<select><option value="accept">Accept</option><option value="reject">Reject</option><option value="needs_review">Needs Review</option><option value="add_note">Add Note</option></select><input placeholder="Optional note" style="min-width: 220px; flex: 1;" /><button>Submit Decision</button><span class="message"></span>`;
           const [decisionEl, noteEl, btnEl, msgEl] = controls.children;
           btnEl.addEventListener("click", async () => {
             msgEl.textContent = "Saving...";
             msgEl.classList.remove("error");
             try {
-              const response = await fetch(`/findings/${finding.finding_id}/decision`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  decision: decisionEl.value,
-                  note: noteEl.value || undefined,
-                }),
-              });
+              const response = await fetch(`/findings/${finding.finding_id}/decision`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision: decisionEl.value, note: noteEl.value || undefined }) });
               const data = await response.json();
-              if (!response.ok) {
-                throw new Error(data.error || "Failed to save decision");
-              }
+              if (!response.ok) throw new Error(data.error || "Failed to save decision");
               msgEl.textContent = `Saved (${data.decision_id})`;
             } catch (error) {
               msgEl.textContent = error.message;
@@ -370,17 +318,11 @@
         resultsEl.appendChild(group);
       });
 
-      const newUrl = `${window.location.pathname}?runId=${encodeURIComponent(runId)}`;
-      window.history.replaceState({}, "", newUrl);
+      window.history.replaceState({}, "", `${window.location.pathname}?runId=${encodeURIComponent(runId)}`);
     }
 
     function escapeHtml(value) {
-      return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
+      return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
     }
   </script>
 </body>
