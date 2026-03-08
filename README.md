@@ -1,15 +1,20 @@
 ﻿# Aider Phase 1 Prototype
 
-Functional prototype for Claude-backed accounting skills with QBO MCP-ready adapter, QA validation, review APIs, PostHog core events, and Railway/Postgres deployment baseline.
+Functional prototype for Claude-backed accounting skills with a QBO MCP-ready adapter, QA validation, review APIs, PostHog core events, and Railway/Postgres deployment baseline.
 
 ## What is included
 
-- Node/TypeScript API with endpoints:
+- Node/TypeScript API endpoints:
+  - `GET /health`
+  - `GET /runs?limit=25`
   - `POST /runs`
   - `GET /runs/:runId`
   - `GET /runs/:runId/findings`
   - `POST /findings/:findingId/decision`
+  - `GET /skills/:skillId/:version`
   - `POST /skills/register`
+  - `POST /skills/update`
+  - `POST /skills/archive`
   - `POST /skills/execute`
 - Five starter accounting skills under `skills/*/v1`
 - Deterministic QA validator
@@ -18,6 +23,7 @@ Functional prototype for Claude-backed accounting skills with QBO MCP-ready adap
 - Claude adapter with fixture fallback mode
 - Railway-ready Postgres schema and scripts
 - PostHog core event capture
+- Lightweight review UI with filters/search/pagination
 
 ## Quick start
 
@@ -34,29 +40,23 @@ Functional prototype for Claude-backed accounting skills with QBO MCP-ready adap
 ## Railway deployment
 
 1. Create Railway project.
-2. Add PostgreSQL plugin and copy `DATABASE_URL`.
+2. Add PostgreSQL service and wire app `DATABASE_URL` to the DB reference.
 3. Set env vars from `.env.example`.
-4. Deploy service with:
+4. Deploy service:
    - Build command: `npm install && npm run build`
    - Start command: `npm run start`
-5. Run migration once using Railway shell: `npm run db:migrate`
+5. Run migration + seed once against Railway DB.
+
+## Review UI
+
+- Open `/review` in the deployed service.
+- Load runs via recent run dropdown or by entering a `run_id`.
+- Use filters for skill, severity, and QA status.
+- Search by `finding_id`.
+- Navigate findings with pagination controls.
 
 ## Notes
 
 - `USE_LIVE_CLAUDE=false` and `USE_LIVE_QBO_MCP=false` keeps Phase 1 fixture-first.
 - Live Claude/QBO calls are optional and non-blocking.
 - Human review remains mandatory for all findings.
-
-## Review UI
-
-- Open /review in the deployed service to load findings by run id and submit review decisions.
-- Use the Create Demo Run button, the recent runs dropdown, or paste an existing un_id.
-- Run history API: GET /runs?limit=25 for recent run dropdown support in the review UI.
-- Review UI includes filters for skill, severity, and QA status.
-- Review UI supports search by finding_id and client-side pagination controls.
-
-- Open /review in the deployed service to load findings by run id and submit review decisions.
-- Use the Create Demo Run button or paste an existing un_id.
-
-
-

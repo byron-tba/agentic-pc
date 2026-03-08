@@ -54,7 +54,7 @@ describe("orchestrator resilience", () => {
     const run = await orchestrator.runClose({
       client_id: "client_demo",
       period_start: "2026-02-01",
-      period_end: "2026-02-29",
+      period_end: "2026-02-28",
     });
 
     expect(run.status).toBe("completed");
@@ -63,3 +63,4 @@ describe("orchestrator resilience", () => {
     expect(findings[0].skill_id).toBe("skill_ok");
   });
 });
+

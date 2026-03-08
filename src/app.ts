@@ -108,6 +108,15 @@ export function createApp() {
     }
   });
 
+  app.get("/skills/:skillId/:version", async (req, res) => {
+    try {
+      const metadata = await skillsService.fetchSkillMetadata(req.params.skillId, req.params.version);
+      res.json({ metadata });
+    } catch (error) {
+      res.status(404).json({ error: errorMessage(error) });
+    }
+  });
+
   app.post("/skills/register", async (req, res) => {
     try {
       const { skill_id, version } = req.body as { skill_id?: string; version?: string };
@@ -115,8 +124,36 @@ export function createApp() {
         res.status(400).json({ error: "skill_id and version are required" });
         return;
       }
-      const result = await skillsService.registerSkill(skill_id, version);
+      const result = await skillsService.createSkill(skill_id, version);
       res.status(201).json({ skill_id, version, ...result });
+    } catch (error) {
+      res.status(400).json({ error: errorMessage(error) });
+    }
+  });
+
+  app.post("/skills/update", async (req, res) => {
+    try {
+      const { skill_id, version } = req.body as { skill_id?: string; version?: string };
+      if (!skill_id || !version) {
+        res.status(400).json({ error: "skill_id and version are required" });
+        return;
+      }
+      const result = await skillsService.updateSkill(skill_id, version);
+      res.status(200).json({ skill_id, version, ...result });
+    } catch (error) {
+      res.status(400).json({ error: errorMessage(error) });
+    }
+  });
+
+  app.post("/skills/archive", async (req, res) => {
+    try {
+      const { skill_id, version } = req.body as { skill_id?: string; version?: string };
+      if (!skill_id || !version) {
+        res.status(400).json({ error: "skill_id and version are required" });
+        return;
+      }
+      await skillsService.archiveSkillVersion(skill_id, version);
+      res.status(200).json({ skill_id, version, archived: true });
     } catch (error) {
       res.status(400).json({ error: errorMessage(error) });
     }

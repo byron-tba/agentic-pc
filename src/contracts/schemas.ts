@@ -1,5 +1,28 @@
 ﻿import { z } from "zod";
 
+function isStrictIsoDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return false;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+const IsoDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be YYYY-MM-DD")
+  .refine((value) => isStrictIsoDate(value), "Invalid calendar date");
+
 export const SeveritySchema = z.enum(["low", "medium", "high"]);
 export const EntityTypeSchema = z.enum([
   "transaction",
@@ -36,12 +59,17 @@ export const QaResultSchema = z.object({
   reasons: z.array(z.string()),
 });
 
-export const CloseRunRequestSchema = z.object({
-  client_id: z.string().min(1),
-  period_start: z.string().min(1),
-  period_end: z.string().min(1),
-  skill_ids: z.array(z.string()).optional(),
-});
+export const CloseRunRequestSchema = z
+  .object({
+    client_id: z.string().min(1),
+    period_start: IsoDateSchema,
+    period_end: IsoDateSchema,
+    skill_ids: z.array(z.string()).optional(),
+  })
+  .refine((value) => value.period_end >= value.period_start, {
+    message: "period_end must be on or after period_start",
+    path: ["period_end"],
+  });
 
 export const SkillManifestSchema = z.object({
   skill_id: z.string().min(1),
@@ -60,8 +88,8 @@ export const SkillManifestSchema = z.object({
 
 export const SkillExecutionContextSchema = z.object({
   client_id: z.string(),
-  period_start: z.string(),
-  period_end: z.string(),
+  period_start: IsoDateSchema,
+  period_end: IsoDateSchema,
   run_id: z.string().optional(),
   input: z.record(z.unknown()).default({}),
 });
