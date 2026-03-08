@@ -14,6 +14,13 @@ import { QaValidator } from "./services/qaValidator.js";
 import { RuntimeService } from "./services/runtimeService.js";
 import { SkillsService } from "./services/skillsService.js";
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message || String(error);
+  }
+  return String(error);
+}
+
 export function createApp() {
   const app = express();
   app.use(express.json());
@@ -38,7 +45,8 @@ export function createApp() {
       const result = await orchestrator.runClose(body);
       res.status(201).json(result);
     } catch (error) {
-      res.status(400).json({ error: (error as Error).message });
+      console.error("POST /runs failed:", error);
+      res.status(500).json({ error: errorMessage(error) });
     }
   });
 
@@ -77,7 +85,7 @@ export function createApp() {
       });
       res.status(201).json(result);
     } catch (error) {
-      res.status(400).json({ error: (error as Error).message });
+      res.status(400).json({ error: errorMessage(error) });
     }
   });
 
@@ -91,7 +99,7 @@ export function createApp() {
       const result = await skillsService.registerSkill(skill_id, version);
       res.status(201).json({ skill_id, version, ...result });
     } catch (error) {
-      res.status(400).json({ error: (error as Error).message });
+      res.status(400).json({ error: errorMessage(error) });
     }
   });
 
@@ -110,7 +118,7 @@ export function createApp() {
       const result = await runtime.executeSkill(skill_id, version, parsedContext);
       res.status(200).json(result);
     } catch (error) {
-      res.status(400).json({ error: (error as Error).message });
+      res.status(400).json({ error: errorMessage(error) });
     }
   });
 
