@@ -1,0 +1,266 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aider Review Surface</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #d1d5db;
+      --accent: #1f6feb;
+      --ok: #166534;
+      --warn: #92400e;
+      --danger: #991b1b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 180px);
+    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    h1 { margin: 0 0 8px; font-size: 24px; }
+    .sub { margin: 0; color: var(--muted); }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    input, select, textarea, button {
+      font: inherit;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+    }
+    input, select, textarea { background: #fff; }
+    button { background: var(--accent); color: #fff; border: none; cursor: pointer; }
+    button.secondary { background: #4b5563; }
+    .skill-group { margin-top: 20px; }
+    .skill-title { font-size: 18px; margin: 0 0 8px; }
+    .finding {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      margin-right: 8px;
+    }
+    .severity-low { background: #dcfce7; color: var(--ok); }
+    .severity-medium { background: #fef3c7; color: var(--warn); }
+    .severity-high { background: #fee2e2; color: var(--danger); }
+    .muted { color: var(--muted); }
+    .meta { margin-top: 8px; font-size: 13px; }
+    .evidence { margin: 8px 0; padding-left: 20px; }
+    .message { margin-top: 8px; font-size: 13px; color: var(--ok); }
+    .error { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="panel">
+      <h1>Aider Findings Review</h1>
+      <p class="sub">Load findings by run id and submit accountant decisions.</p>
+      <div class="row">
+        <input id="runIdInput" placeholder="run_..." style="min-width: 320px; flex: 1;" />
+        <button id="loadBtn">Load Findings</button>
+      </div>
+      <div class="row">
+        <button id="createRunBtn" class="secondary">Create Demo Run</button>
+      </div>
+      <div id="headerMessage" class="message"></div>
+    </div>
+
+    <div id="results"></div>
+  </div>
+
+  <script>
+    const runIdInput = document.getElementById("runIdInput");
+    const loadBtn = document.getElementById("loadBtn");
+    const createRunBtn = document.getElementById("createRunBtn");
+    const resultsEl = document.getElementById("results");
+    const headerMessage = document.getElementById("headerMessage");
+
+    const qp = new URLSearchParams(window.location.search);
+    if (qp.get("runId")) {
+      runIdInput.value = qp.get("runId");
+      loadFindings(qp.get("runId"));
+    }
+
+    loadBtn.addEventListener("click", () => {
+      const runId = runIdInput.value.trim();
+      if (!runId) return;
+      loadFindings(runId);
+    });
+
+    createRunBtn.addEventListener("click", async () => {
+      headerMessage.textContent = "Creating demo run...";
+      headerMessage.classList.remove("error");
+      try {
+        const response = await fetch("/runs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            client_id: "client_demo",
+            period_start: "2026-02-01",
+            period_end: "2026-02-28"
+          })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || "Failed to create run");
+        }
+        runIdInput.value = data.run_id;
+        headerMessage.textContent = `Run created: ${data.run_id}`;
+        loadFindings(data.run_id);
+      } catch (error) {
+        headerMessage.textContent = error.message;
+        headerMessage.classList.add("error");
+      }
+    });
+
+    async function loadFindings(runId) {
+      headerMessage.textContent = `Loading findings for ${runId}...`;
+      headerMessage.classList.remove("error");
+      resultsEl.innerHTML = "";
+
+      try {
+        const runRes = await fetch(`/runs/${runId}`);
+        const runData = await runRes.json();
+        if (!runRes.ok) throw new Error(runData.error || "Failed to load run");
+
+        const findingsRes = await fetch(`/runs/${runId}/findings`);
+        const findingsData = await findingsRes.json();
+        if (!findingsRes.ok) throw new Error(findingsData.error || "Failed to load findings");
+
+        renderRunSummary(runData);
+        renderFindings(runId, findingsData.grouped_findings || {});
+        headerMessage.textContent = `Loaded run ${runId}`;
+      } catch (error) {
+        headerMessage.textContent = error.message;
+        headerMessage.classList.add("error");
+      }
+    }
+
+    function renderRunSummary(run) {
+      const panel = document.createElement("div");
+      panel.className = "panel";
+      panel.innerHTML = `
+        <div><strong>Run:</strong> ${run.run_id}</div>
+        <div class="muted">Client: ${run.client_id} | Status: ${run.status}</div>
+        <div class="muted">Period: ${new Date(run.period_start).toISOString().slice(0, 10)} to ${new Date(run.period_end).toISOString().slice(0, 10)}</div>
+      `;
+      resultsEl.appendChild(panel);
+    }
+
+    function renderFindings(runId, grouped) {
+      const skills = Object.keys(grouped);
+      if (!skills.length) {
+        const panel = document.createElement("div");
+        panel.className = "panel";
+        panel.textContent = "No findings for this run.";
+        resultsEl.appendChild(panel);
+        return;
+      }
+
+      skills.forEach((skillId) => {
+        const group = document.createElement("div");
+        group.className = "panel skill-group";
+
+        const title = document.createElement("h2");
+        title.className = "skill-title";
+        title.textContent = `${skillId} (${grouped[skillId].length})`;
+        group.appendChild(title);
+
+        grouped[skillId].forEach((finding) => {
+          const card = document.createElement("div");
+          card.className = "finding";
+
+          const severityClass = `severity-${finding.severity || "medium"}`;
+          card.innerHTML = `
+            <div>
+              <span class="pill ${severityClass}">${finding.severity}</span>
+              <strong>${finding.summary}</strong>
+            </div>
+            <div class="meta">Finding ID: ${finding.finding_id}</div>
+            <div class="meta">Entity: ${finding.entity_type} / ${finding.entity_ref}</div>
+            <div class="meta">Risk: ${finding.risk_score} | Confidence: ${finding.confidence_score} | QA: ${finding.qa_status || "unknown"}</div>
+            <p>${finding.rationale}</p>
+            <p><strong>Recommended:</strong> ${finding.recommended_action}</p>
+            <div><strong>Evidence:</strong></div>
+            <ul class="evidence">${(finding.evidence || []).map((e) => `<li>${escapeHtml(e)}</li>`).join("")}</ul>
+          `;
+
+          const controls = document.createElement("div");
+          controls.className = "row";
+          controls.innerHTML = `
+            <select>
+              <option value="accept">Accept</option>
+              <option value="reject">Reject</option>
+              <option value="needs_review">Needs Review</option>
+              <option value="add_note">Add Note</option>
+            </select>
+            <input placeholder="Optional note" style="min-width: 220px; flex: 1;" />
+            <button>Submit Decision</button>
+            <span class="message"></span>
+          `;
+
+          const [decisionEl, noteEl, btnEl, msgEl] = controls.children;
+          btnEl.addEventListener("click", async () => {
+            msgEl.textContent = "Saving...";
+            msgEl.classList.remove("error");
+            try {
+              const response = await fetch(`/findings/${finding.finding_id}/decision`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  decision: decisionEl.value,
+                  note: noteEl.value || undefined,
+                }),
+              });
+              const data = await response.json();
+              if (!response.ok) {
+                throw new Error(data.error || "Failed to save decision");
+              }
+              msgEl.textContent = `Saved (${data.decision_id})`;
+            } catch (error) {
+              msgEl.textContent = error.message;
+              msgEl.classList.add("error");
+            }
+          });
+
+          card.appendChild(controls);
+          group.appendChild(card);
+        });
+
+        resultsEl.appendChild(group);
+      });
+
+      const newUrl = `${window.location.pathname}?runId=${encodeURIComponent(runId)}`;
+      window.history.replaceState({}, "", newUrl);
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+  </script>
+</body>
+</html>

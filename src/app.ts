@@ -1,4 +1,5 @@
 ﻿import express from "express";
+import path from "node:path";
 import { ClaudeSkillsAdapter } from "./adapters/claude.js";
 import { Analytics } from "./adapters/posthog.js";
 import {
@@ -34,6 +35,17 @@ export function createApp() {
   const runtime = new RuntimeService(repo, skillsService, claude, mcp);
   const qa = new QaValidator();
   const orchestrator = new RunOrchestrator(repo, skillsService, runtime, qa, analytics);
+
+  const publicDir = path.join(process.cwd(), "public");
+  app.use(express.static(publicDir));
+
+  app.get("/", (_req, res) => {
+    res.redirect("/review");
+  });
+
+  app.get("/review", (_req, res) => {
+    res.sendFile(path.join(publicDir, "review.html"));
+  });
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true });

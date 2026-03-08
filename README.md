@@ -46,3 +46,9 @@ Functional prototype for Claude-backed accounting skills with QBO MCP-ready adap
 - `USE_LIVE_CLAUDE=false` and `USE_LIVE_QBO_MCP=false` keeps Phase 1 fixture-first.
 - Live Claude/QBO calls are optional and non-blocking.
 - Human review remains mandatory for all findings.
+
+## Review UI
+
+- Open /review in the deployed service to load findings by run id and submit review decisions.
+- Use the Create Demo Run button or paste an existing un_id.
+
